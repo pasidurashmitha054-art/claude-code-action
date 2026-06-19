@@ -1,0 +1,58 @@
+name: "Security Analysis & Hardening"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    # 'pull_request_target' භාවිතා නොකරන්න - Fork PRs ආරක්ෂා කිරීමට 'pull_request' පමණක් භාවිතා කරන්න
+    branches: [ "main" ]
+  schedule:
+    - cron: '30 0 * * 0' # සතියකට වරක් ස්වයංක්‍රීය ස්කෑන් කිරීම
+
+permissions:
+  # අවම වරප්‍රසාද (Least Privilege Principle)
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  analyze:
+    name: Code Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'javascript', 'python' ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Fork PR සඳහා ආරක්ෂිතව Checkout කිරීම
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # සැක සහිත දත්ත ඇතුළු වීම වැළැක්වීමට strict mode භාවිතා කරන්න
+          queries: security-extended
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
+
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Gitleaks (Secret Scanner)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
